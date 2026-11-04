@@ -4,6 +4,7 @@ services:
     container_name: shop_app
     volumes:
       - ./src:/var/www/html
+      - ./docker/php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
     depends_on:
       - db
 
@@ -31,5 +32,57 @@ services:
     volumes:
       - dbdata:/var/lib/mysql
 
+  # Optional: browse the app's MySQL database at http://127.0.0.1:8080 (user: shop / password: secret)
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: shop_phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    ports:
+      - "8090:80"
+    depends_on:
+      - db
+
+  # Requirement 2: independent inventory service (Node.js) reached over gRPC only.
+  inventory:
+    build: ./inventory-service
+    container_name: shop_inventory
+    environment:
+      DB_HOST: inventory-db
+      DB_PORT: 5432
+      DB_DATABASE: inventory
+      DB_USERNAME: inventory
+      DB_PASSWORD: secret
+      GRPC_PORT: 50051
+      # Demo of a slow service: INVENTORY_DELAY_MS=5000 docker compose up -d inventory
+      SIMULATED_DELAY_MS: ${INVENTORY_DELAY_MS:-0}
+    volumes:
+      - ./proto:/app/proto:ro
+    ports:
+      - "50051:50051"
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+
+  # The inventory service's own database (separate from the app's MySQL).
+  inventory-db:
+    image: postgres:16-alpine
+    container_name: shop_inventory_db
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5433:5432"
+    volumes:
+      - inventorydata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
 volumes:
   dbdata:
+  inventorydata:
