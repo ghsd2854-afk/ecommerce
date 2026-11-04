@@ -3,13 +3,16 @@
 namespace Modules\Products\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Modules\Inventory\Contracts\InventoryGateway;
+use Modules\Inventory\Exceptions\InventoryUnavailableException;
+use Modules\Products\Events\ProductDeleting;
+use Modules\Products\Exceptions\ProductInUseException;
 use Modules\Products\Http\Requests\StoreProductRequest;
 use Modules\Products\Http\Requests\UpdateProductRequest;
 use Modules\Products\Http\Resources\ProductResource;
@@ -51,9 +54,29 @@ class ProductController extends Controller
         ]);
     }
 
-    public function show(Product $product): ProductResource
+    /**
+     * Product details + available quantity asked from the inventory service over gRPC.
+     * If the inventory service is down or too slow, the product is still shown,
+     * with a clear note that the stock information is temporarily unavailable.
+     */
+    public function show(Product $product, InventoryGateway $inventory): ProductResource
     {
-        return new ProductResource($product);
+        try {
+            $quantity = $inventory->getAvailableQuantity($product->id);
+            $stock = [
+                'available_quantity' => $quantity,
+                'in_stock' => $quantity > 0,
+            ];
+        } catch (InventoryUnavailableException $e) {
+            report($e);
+            $stock = [
+                'available_quantity' => null,
+                'in_stock' => null,
+                'message' => 'Stock information is temporarily unavailable.',
+            ];
+        }
+
+        return (new ProductResource($product))->withStock($stock);
     }
 
     public function store(StoreProductRequest $request): JsonResponse
@@ -86,12 +109,14 @@ class ProductController extends Controller
     public function destroy(Product $product): JsonResponse
     {
         try {
-            $product->delete();
-        } catch (QueryException) {
+            event(new ProductDeleting($product->id));
+        } catch (ProductInUseException) {
             return response()->json([
                 'message' => 'This product is part of existing orders and cannot be deleted.',
             ], 409);
         }
+
+        $product->delete();
 
         $this->deleteImage($product->image_path);
 

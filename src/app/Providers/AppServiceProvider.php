@@ -7,6 +7,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
+/**
+ * Application-wide (shared) setup only. Module-specific setup lives in each
+ * module's own provider (Modules/<Name>/Providers).
+ */
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void

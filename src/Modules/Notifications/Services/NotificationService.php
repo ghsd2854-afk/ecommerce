@@ -3,10 +3,14 @@
 namespace Modules\Notifications\Services;
 
 use Modules\Notifications\Models\UserNotification;
-use Modules\Users\Models\User;
+use Modules\Users\Contracts\UserDirectory;
 
 class NotificationService
 {
+    public function __construct(private UserDirectory $users)
+    {
+    }
+
     public function notify(int $userId, string $type, string $message): void
     {
         UserNotification::create([
@@ -18,8 +22,8 @@ class NotificationService
 
     public function notifyAdmins(string $type, string $message): void
     {
-        User::where('role', 'admin')->pluck('id')->each(
-            fn (int $id) => $this->notify($id, $type, $message)
-        );
+        foreach ($this->users->adminIds() as $id) {
+            $this->notify($id, $type, $message);
+        }
     }
 }
