@@ -3,9 +3,7 @@
 namespace Modules\Orders\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Modules\Users\Models\User;
 
 class Order extends Model
 {
@@ -13,16 +11,11 @@ class Order extends Model
 
     public const STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 
-    protected $fillable = ['user_id', 'status', 'total'];
+    protected $fillable = ['user_id', 'status', 'total', 'reservation_id'];
 
     protected function casts(): array
     {
-        return ['total' => 'decimal:2'];
-    }
-
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
+        return ['user_id' => 'integer', 'total' => 'decimal:2'];
     }
 
     public function items(): HasMany

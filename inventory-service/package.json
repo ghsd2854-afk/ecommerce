@@ -1,0 +1,20 @@
+{
+  "name": "inventory-service",
+  "version": "1.0.0",
+  "description": "Inventory (stock) microservice exposed over gRPC. Polyglot service: Node.js + PostgreSQL.",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "set-stock": "node scripts/set-stock.js",
+    "race-test": "node scripts/race-test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.7",
+    "@grpc/proto-loader": "^0.8.1",
+    "pg": "^8.23.1"
+  }
+}

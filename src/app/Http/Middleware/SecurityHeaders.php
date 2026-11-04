@@ -21,7 +21,7 @@ class SecurityHeaders
             $response->headers->set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
         }
 
-        if ($request->is('api/auth/*')) {
+        if ($request->is('api/*/auth/*')) {
             $response->headers->set('Cache-Control', 'no-store');
         }
 

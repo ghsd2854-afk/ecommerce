@@ -3,10 +3,16 @@
     "name": "laravel/laravel",
     "type": "project",
     "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "ext-grpc": "*",
+        "google/protobuf": "^4.30 || ^5.0",
+        "grpc/grpc": "^1.57",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
         "php-open-source-saver/jwt-auth": "^2.9"
@@ -22,8 +28,8 @@
     },
     "autoload": {
         "psr-4": {
-        "App\\": "app/",
-        "Modules\\": "Modules/",
+            "App\\": "app/",
+            "Modules\\": "Modules/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
         }

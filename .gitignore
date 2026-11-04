@@ -14,3 +14,9 @@
 # OS files
 .DS_Store
 Thumbs.db
+
+src/.env
+src/storage/logs/*.log
+src/database/database.sqlite
+inventory-service/node_modules/
+src/public/uploads/

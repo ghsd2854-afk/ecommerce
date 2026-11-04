@@ -12,6 +12,6 @@ class UserNotification extends Model
 
     protected function casts(): array
     {
-        return ['read_at' => 'datetime'];
+        return ['user_id' => 'integer', 'read_at' => 'datetime'];
     }
 }

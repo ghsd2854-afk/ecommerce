@@ -16,7 +16,7 @@ class OrderResource extends JsonResource
             'total' => $this->total,
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'product_id' => $item->product_id,
-                'product_name' => $item->product?->name,
+                'product_name' => $item->product_name,
                 'quantity' => $item->quantity,
                 'unit_price' => $item->unit_price,
             ])),
