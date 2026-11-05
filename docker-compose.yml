@@ -1,0 +1,35 @@
+services:
+  app:
+    build: .
+    container_name: shop_app
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      - db
+
+  nginx:
+    image: nginx:alpine
+    container_name: shop_nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - ./src:/var/www/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+
+  db:
+    image: mysql:8.0
+    container_name: shop_db
+    environment:
+      MYSQL_DATABASE: shop
+      MYSQL_USER: shop
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+
+volumes:
+  dbdata:
