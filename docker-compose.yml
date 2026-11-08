@@ -32,7 +32,7 @@ services:
     volumes:
       - dbdata:/var/lib/mysql
 
-  # Optional: browse the app's MySQL database at http://127.0.0.1:8080 (user: shop / password: secret)
+  # Optional: browse the app's MySQL database at http://127.0.0.1:8090 (user: shop / password: secret)
   phpmyadmin:
     image: phpmyadmin:5
     container_name: shop_phpmyadmin
@@ -82,6 +82,17 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+
+  # Interview demo runner. Not started by "docker compose up"; used by demo.cmd / demo.ps1.
+  demo:
+    build: ./inventory-service
+    profiles: ["tools"]
+    user: root
+    environment:
+      API_URL: http://nginx/api/v1
+      DEMO_CACHE: /cache/tokens.json
+    volumes:
+      - ./docker/demo-cache:/cache
 
 volumes:
   dbdata:
