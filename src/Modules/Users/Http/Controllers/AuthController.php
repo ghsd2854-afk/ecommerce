@@ -2,6 +2,7 @@
 
 namespace Modules\Users\Http\Controllers;
 
+use App\Http\ApiError;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,7 +45,7 @@ class AuthController extends Controller
         $user = User::where('email', $data['email'])->first();
 
         if (! $user || ! $this->otp->verify($data['email'], OtpService::VERIFY_EMAIL, $data['code'])) {
-            return response()->json(['message' => 'Invalid or expired code.'], 422);
+            return ApiError::response(422, 'INVALID_CODE', 'Invalid or expired code.');
         }
 
         $user->forceFill(['email_verified_at' => now()])->save();
@@ -74,7 +75,7 @@ class AuthController extends Controller
         $token = auth('api')->attempt($request->validated());
 
         if (! $token) {
-            return response()->json(['message' => 'Invalid email or password.'], 401);
+            return ApiError::response(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
         }
 
         $user = auth('api')->user();
@@ -82,7 +83,7 @@ class AuthController extends Controller
         if (! $user->email_verified_at) {
             auth('api')->logout();
 
-            return response()->json(['message' => 'Please verify your email first.'], 403);
+            return ApiError::response(403, 'EMAIL_NOT_VERIFIED', 'Please verify your email first.');
         }
 
         return $this->respondWithToken($token, $user);
@@ -114,7 +115,7 @@ class AuthController extends Controller
         $user = User::where('email', $data['email'])->first();
 
         if (! $user || ! $this->otp->verify($data['email'], OtpService::RESET_PASSWORD, $data['code'])) {
-            return response()->json(['message' => 'Invalid or expired code.'], 422);
+            return ApiError::response(422, 'INVALID_CODE', 'Invalid or expired code.');
         }
 
         $user->password = $data['password'];

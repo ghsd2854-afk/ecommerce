@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "3db41519-bc5e-5f55-82e9-c98dad527766",
     "name": "E-Commerce Platform API v1 (Requirements 1 + 2)",
-    "description": "REST API documentation and proof tests.\n\nBase URL: {{base_url}} (API version v1 in the path).\nRun order in the Collection Runner: 0 -> 2 -> 3 -> 4 -> 5. Folder 1 needs OTP codes, folder 6 needs Docker changes (see each request's description).\n\nErrors always use the format {\"message\": \"...\"} (+ \"errors\" for validation).",
+    "description": "REST API documentation and proof tests.\n\nBase URL: {{base_url}} (API version v1 in the path).\nRun order in the Collection Runner: 0 -> 2 -> 3 -> 4 -> 5. Folder 1 needs OTP codes, folder 6 needs Docker changes (see each request's description).\n\nEvery error uses the unified format {\"status\", \"code\", \"message\"} (+ \"errors\" for validation, + \"details\" for extra data).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -274,7 +274,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 422\", () => pm.response.to.have.status(422));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));",
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});",
                   "pm.test(\"Validation errors listed\", () => pm.expect(pm.response.json().errors).to.have.property(\"password\"));"
                 ]
               }
@@ -720,7 +725,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 401\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -982,7 +992,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 404\", () => pm.response.to.have.status(404));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -1028,7 +1043,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 422\", () => pm.response.to.have.status(422));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -1161,7 +1181,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 422\", () => pm.response.to.have.status(422));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));",
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});",
                   "pm.test(\"Field errors\", () => pm.expect(pm.response.json().errors).to.include.keys(\"name\", \"price\", \"category\"));"
                 ]
               }
@@ -1372,7 +1397,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -1428,7 +1458,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 422\", () => pm.response.to.have.status(422));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -1674,7 +1709,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 422\", () => pm.response.to.have.status(422));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2085,10 +2125,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 409\", () => pm.response.to.have.status(409));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));",
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});",
                   "const json = pm.response.json();",
                   "pm.test(\"Message explains the shortage\", () => pm.expect(json.message).to.include(\"Not enough stock\"));",
-                  "pm.test(\"Shortages listed\", () => pm.expect(json.shortages[0].product_id).to.eql(7));"
+                  "pm.test(\"Error code INSUFFICIENT_STOCK\", () => pm.expect(json.code).to.eql(\"INSUFFICIENT_STOCK\"));",
+                  "pm.test(\"Shortages listed in details\", () => pm.expect(json.details.shortages[0].product_id).to.eql(7));"
                 ]
               }
             }
@@ -2176,7 +2222,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2278,7 +2329,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2334,7 +2390,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2378,7 +2439,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2423,7 +2489,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2459,7 +2530,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 401\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2502,7 +2578,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 401\", () => pm.response.to.have.status(401));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2583,7 +2664,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 405\", () => pm.response.to.have.status(405));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2637,7 +2723,7 @@
                   "pm.collectionVariables.set(\"login_attempts\", n);",
                   "if (pm.response.code === 429) {",
                   "  pm.test(`Rate limited (429) after ${n} attempts`, () => pm.response.to.have.status(429));",
-                  "  pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));",
+                  "  pm.test(\"Unified error format {status, code, message}\", () => pm.expect(pm.response.json()).to.include.keys(\"status\", \"code\", \"message\"));",
                   "  pm.collectionVariables.set(\"login_attempts\", 0);",
                   "} else if (n < 6) {",
                   "  pm.test(`Attempt ${n}: wrong password -> 401`, () => pm.response.to.have.status(401));",
@@ -2708,7 +2794,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 503\", () => pm.response.to.have.status(503));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));"
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});"
                 ]
               }
             }
@@ -2803,7 +2894,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 504\", () => pm.response.to.have.status(504));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));",
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});",
                   "pm.test(\"Answered at the deadline, not after 5 s\", () => pm.expect(pm.response.responseTime).to.be.below(4000));"
                 ]
               }
@@ -2898,7 +2994,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 500\", () => pm.response.to.have.status(500));",
-                  "pm.test(\"Unified error format {message}\", () => pm.expect(pm.response.json()).to.have.property(\"message\"));",
+                  "pm.test(\"Unified error format {status, code, message}\", () => {",
+                  "  const e = pm.response.json();",
+                  "  pm.expect(e).to.include.keys(\"status\", \"code\", \"message\");",
+                  "  pm.expect(e.status).to.eql(pm.response.code);",
+                  "  pm.expect(e).to.not.have.property(\"trace\");",
+                  "});",
                   "pm.test(\"Stock returned\", () => pm.expect(pm.response.json().message).to.include(\"returned\"));"
                 ]
               }

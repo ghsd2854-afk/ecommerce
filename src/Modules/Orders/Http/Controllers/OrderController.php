@@ -2,6 +2,7 @@
 
 namespace Modules\Orders\Http\Controllers;
 
+use App\Http\ApiError;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -78,40 +79,45 @@ class OrderController extends Controller
             'product_id' => (int) $item['product_id'],
             'quantity' => (int) $item['quantity'],
         ]);
-         $products = collect($this->catalog->findMany($items->pluck('product_id')->all()));
+        // Name + price come from the Products module's public contract (no access to its table).
+        $products = collect($this->catalog->findMany($items->pluck('product_id')->all()));
         $reservationId = (string) Str::uuid();
 
+        // 1) Reserve everything in a single gRPC call.
         try {
             $reservation = $this->inventory->reserve($reservationId, $items->all());
         } catch (InventoryUnavailableException $e) {
             if ($e->isTimeout()) {
-                 app()->terminating(fn () => $this->releaseQuietly($reservationId));
+                // The reservation may still be processed after we gave up: cancel it to be safe.
+                // Done after the response is sent, so the user gets the 504 right at the deadline.
+                app()->terminating(fn () => $this->releaseQuietly($reservationId));
             }
-            throw $e;
+            throw $e; // rendered as 503 / 504 JSON
         }
 
+        // 2) Not enough stock: clear message, nothing is created.
         if (! $reservation->success) {
-            return response()->json([
-                'message' => $this->shortageMessage($reservation->shortages, $products, $reservation->message),
-                'shortages' => $reservation->shortages,
-            ], 409);
+            return ApiError::response(409, 'INSUFFICIENT_STOCK',
+                $this->shortageMessage($reservation->shortages, $products, $reservation->message),
+                ['shortages' => $reservation->shortages]);
         }
 
+        // 3) Save the order.
         try {
             $order = DB::transaction(fn () => $this->saveOrder($request, $items, $products, $reservationId));
         } catch (Throwable $e) {
             report($e);
 
+            // 4) Compensation: the order was not saved, so return the reserved quantities.
             $released = $this->releaseQuietly($reservationId);
 
-            return response()->json([
-                'message' => $released
-                    ? 'The order could not be saved. The reserved stock was returned to the inventory.'
-                    : 'The order could not be saved. Returning the reserved stock failed and was logged for manual release.',
-            ], 500);
+            return ApiError::response(500, 'ORDER_NOT_SAVED', $released
+                ? 'The order could not be saved. The reserved stock was returned to the inventory.'
+                : 'The order could not be saved. Returning the reserved stock failed and was logged for manual release.');
         }
 
-         event(new OrderPlaced($order->id, $order->user_id, (string) $request->user()->name));
+        // Tell whoever is interested (the Notifications module listens). Orders does not know who.
+        event(new OrderPlaced($order->id, $order->user_id, (string) $request->user()->name));
 
         return (new OrderResource($order->load('items')))
             ->response()

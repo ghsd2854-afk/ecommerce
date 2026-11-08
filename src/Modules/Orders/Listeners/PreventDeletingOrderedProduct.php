@@ -15,7 +15,7 @@ class PreventDeletingOrderedProduct
     public function handle(ProductDeleting $event): void
     {
         if (OrderItem::where('product_id', $event->productId)->exists()) {
-            throw new ProductInUseException('This product is part of existing orders.');
+            throw new ProductInUseException($event->productId);
         }
     }
 }

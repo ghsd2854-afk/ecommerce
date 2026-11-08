@@ -12,7 +12,6 @@ use Illuminate\Support\Str;
 use Modules\Inventory\Contracts\InventoryGateway;
 use Modules\Inventory\Exceptions\InventoryUnavailableException;
 use Modules\Products\Events\ProductDeleting;
-use Modules\Products\Exceptions\ProductInUseException;
 use Modules\Products\Http\Requests\StoreProductRequest;
 use Modules\Products\Http\Requests\UpdateProductRequest;
 use Modules\Products\Http\Resources\ProductResource;
@@ -108,13 +107,10 @@ class ProductController extends Controller
 
     public function destroy(Product $product): JsonResponse
     {
-        try {
-            event(new ProductDeleting($product->id));
-        } catch (ProductInUseException) {
-            return response()->json([
-                'message' => 'This product is part of existing orders and cannot be deleted.',
-            ], 409);
-        }
+        // Ask the other modules (through an event) whether the product is still needed.
+        // The Orders module answers by throwing ProductInUseException, which renders
+        // itself as 409 Conflict. Products does not know Orders and never reads its tables.
+        event(new ProductDeleting($product->id));
 
         $product->delete();
 

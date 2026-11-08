@@ -1,13 +1,13 @@
 <?php
 
+use App\Http\ApiError;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -30,15 +30,13 @@ return Application::configure(basePath: dirname(__DIR__))
             return $request->is('api/*') || $request->expectsJson();
         });
 
-        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
-            if ($request->is('api/*')) {
-                return response()->json(['message' => 'Resource not found.'], 404);
-            }
-        });
-
-        $exceptions->render(function (MethodNotAllowedHttpException $e, Request $request) {
-            if ($request->is('api/*')) {
-                return response()->json(['message' => 'Method not allowed.'], 405);
+        // Unified error format for EVERY API error (401, 403, 404, 405, 422, 429, 500, ...):
+        // {"status": ..., "code": "...", "message": "...", "errors"?: {...}, "details"?: {...}}
+        // Exceptions that render themselves (e.g. InventoryUnavailableException) use the same
+        // helper, App\Http\ApiError.
+        $exceptions->render(function (Throwable $e, Request $request) {
+            if ($request->is('api/*') && ! $e instanceof HttpResponseException) {
+                return ApiError::fromException($e);
             }
         });
     })->create();
