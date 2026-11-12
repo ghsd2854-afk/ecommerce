@@ -14,7 +14,9 @@ class EloquentProductCatalog implements ProductCatalog
             return [];
         }
 
-        return Product::whereIn('id', array_unique($ids))
+        // Used when an order is CREATED: the price must be the real current one, so it is
+        // read from the primary database (never from the cache or a replica that may be behind).
+        return Product::query()->useWritePdo()->whereIn('id', array_unique($ids))
             ->get(['id', 'name', 'price'])
             ->mapWithKeys(fn (Product $p) => [
                 (int) $p->id => new ProductSummary((int) $p->id, $p->name, (string) $p->price),

@@ -14,8 +14,10 @@ class PreventDeletingOrderedProduct
 {
     public function handle(ProductDeleting $event): void
     {
-        if (OrderItem::where('product_id', $event->productId)->exists()) {
-            throw new ProductInUseException('This product is part of existing orders.');
+        // Read from the PRIMARY: an order placed a moment ago may not be on the replica yet,
+        // and this check decides whether data is deleted.
+        if (OrderItem::query()->useWritePdo()->where('product_id', $event->productId)->exists()) {
+            throw new ProductInUseException($event->productId);
         }
     }
 }

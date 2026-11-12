@@ -73,7 +73,7 @@ async function checkout() {
     } catch (err) {
         const names = Object.fromEntries(Cart.items().map((i) => [i.product_id, i.name]));
         showError('#msg', err, names);
-        if (err.status === 409 && err.data.shortages) {
+        if (err.status === 409 && err.data.details && err.data.details.shortages) {
             $('#msg').innerHTML += '<div class="alert warn">عدّل الكميات في السلة ثم أعد المحاولة.</div>';
         }
     }
