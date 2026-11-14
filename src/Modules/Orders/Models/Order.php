@@ -11,6 +11,7 @@ class Order extends Model
 
     public const STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 
+    // user_id is only an id: the Orders module does not load or join the Users module's data.
     protected $fillable = ['user_id', 'status', 'total', 'reservation_id'];
 
     protected function casts(): array

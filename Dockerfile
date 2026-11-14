@@ -12,6 +12,12 @@ RUN MAKEFLAGS="-j${GRPC_BUILD_JOBS}" pecl install grpc \
     && docker-php-ext-enable grpc \
     && rm -rf /tmp/pear
 
+# Requirement 3: Redis client extension (phpredis) for the cache.
+# A separate layer AFTER gRPC, so adding it does not recompile gRPC (Docker reuses that layer).
+RUN pecl install redis \
+    && docker-php-ext-enable redis \
+    && rm -rf /tmp/pear
+
 # OPcache: keeps compiled PHP in memory instead of re-reading every file on each request
 RUN docker-php-ext-install opcache
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini

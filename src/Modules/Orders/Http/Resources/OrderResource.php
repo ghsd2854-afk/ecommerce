@@ -14,12 +14,14 @@ class OrderResource extends JsonResource
             'user_id' => $this->user_id,
             'status' => $this->status,
             'total' => $this->total,
-            'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
+            // If the items were not eager loaded, $this->items runs ONE query for THIS order:
+            // in a list of N orders that is the N+1 problem (see OrderController@index).
+            'items' => $this->items->map(fn ($item) => [
                 'product_id' => $item->product_id,
                 'product_name' => $item->product_name,
                 'quantity' => $item->quantity,
                 'unit_price' => $item->unit_price,
-            ])),
+            ]),
             'created_at' => $this->created_at,
         ];
     }

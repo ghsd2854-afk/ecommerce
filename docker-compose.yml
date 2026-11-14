@@ -2,11 +2,23 @@ services:
   app:
     build: .
     container_name: shop_app
+    environment:
+      # Requirement 3: writes -> primary (db), reads -> read replica (db-replica)
+      DB_WRITE_HOST: db
+      DB_READ_HOST: db-replica
+      # Requirement 3: Redis for the data cache AND Laravel's own cache (rate limiter...)
+      REDIS_HOST: redis
+      CACHE_STORE: redis
     volumes:
       - ./src:/var/www/html
       - ./docker/php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-replica-setup:
+        condition: service_completed_successfully
 
   nginx:
     image: nginx:alpine
@@ -19,9 +31,16 @@ services:
     depends_on:
       - app
 
+  # PRIMARY database: receives all writes. Binary log + GTID so a replica can copy it.
   db:
     image: mysql:8.0
     container_name: shop_db
+    command:
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
     environment:
       MYSQL_DATABASE: shop
       MYSQL_USER: shop
@@ -31,14 +50,81 @@ services:
       - "3307:3306"
     volumes:
       - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
 
-  # Optional: browse the app's MySQL database at http://127.0.0.1:8080 (user: shop / password: secret)
+  # Requirement 3 (layer 4): READ REPLICA. A second MySQL server that continuously copies
+  # the primary (asynchronous replication). The app sends its SELECTs here.
+  # read-only: the application user cannot write here (only replication can).
+  db-replica:
+    image: mysql:8.0
+    container_name: shop_db_replica
+    command:
+      - --server-id=2
+      - --log-bin=mysql-bin
+      - --relay-log=replica-relay-bin
+      - --binlog-format=ROW
+      - --gtid-mode=ON
+      - --enforce-gtid-consistency=ON
+      - --read-only=ON
+    environment:
+      MYSQL_DATABASE: shop
+      MYSQL_USER: shop
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3308:3306"
+    volumes:
+      - dbreplicadata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+
+  # One-shot job on every "up": connects the replica to the primary (copies the existing
+  # data the first time, then GTID replication). Safe to run again. See the script.
+  db-replica-setup:
+    image: mysql:8.0
+    container_name: shop_db_replica_setup
+    # (sed removes Windows line endings, in case Git converted the script to CRLF)
+    entrypoint: ["bash", "-c", "sed 's/\\r$$//' /scripts/setup-replica.sh > /tmp/setup-replica.sh && exec bash /tmp/setup-replica.sh"]
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      FORCE: ${REPLICA_FORCE:-0}
+    volumes:
+      - ./docker/mysql:/scripts:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      db-replica:
+        condition: service_healthy
+    restart: "no"
+
+  # Requirement 3 (layer 2): Redis cache. allkeys-lru: when the memory limit is reached,
+  # the least recently used keys are removed (a cache must never fill up and fail).
+  redis:
+    image: redis:7-alpine
+    container_name: shop_redis
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Optional: browse the MySQL databases at http://127.0.0.1:8090 (user: shop / password: secret)
   phpmyadmin:
     image: phpmyadmin:5
     container_name: shop_phpmyadmin
     environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
+      # both servers selectable on the login page: db = primary, db-replica = read replica
+      PMA_HOSTS: db,db-replica
     ports:
       - "8090:80"
     depends_on:
@@ -83,6 +169,32 @@ services:
       timeout: 3s
       retries: 20
 
+  # Interview demo runner. Not started by "docker compose up"; used by demo.cmd / demo.ps1.
+  demo:
+    build: ./inventory-service
+    profiles: ["tools"]
+    user: root
+    environment:
+      API_URL: http://nginx/api/v1
+      DEMO_CACHE: /cache/tokens.json
+    volumes:
+      - ./docker/demo-cache:/cache
+      # scripts mounted: changing demo.js does not need a rebuild
+      - ./inventory-service/scripts:/app/scripts:ro
+      - ./perf:/perf
+
+  # Requirement 3: k6 load test (before / after). Not started by "docker compose up".
+  #   used by: demo.cmd perf
+  k6:
+    image: grafana/k6:latest
+    profiles: ["tools"]
+    user: root
+    environment:
+      BASE_URL: http://nginx/api/v1
+    volumes:
+      - ./perf:/perf
+
 volumes:
   dbdata:
+  dbreplicadata:
   inventorydata:
