@@ -2,6 +2,7 @@
 
 namespace Modules\Inventory\Exceptions;
 
+use App\Http\ApiError;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -38,14 +39,11 @@ class InventoryUnavailableException extends RuntimeException
     public function render(): JsonResponse
     {
         if ($this->isTimeout()) {
-            return response()->json([
-                'message' => "The inventory service did not respond within {$this->timeoutMs} ms. "
-                    .'Nothing was changed, please try again.',
-            ], 504);
+            return ApiError::response(504, 'INVENTORY_TIMEOUT',
+                "The inventory service did not respond within {$this->timeoutMs} ms. Nothing was changed, please try again.");
         }
 
-        return response()->json([
-            'message' => 'The inventory service is currently unavailable. Nothing was changed, please try again later.',
-        ], 503);
+        return ApiError::response(503, 'INVENTORY_UNAVAILABLE',
+            'The inventory service is currently unavailable. Nothing was changed, please try again later.');
     }
 }

@@ -119,7 +119,9 @@ const KNOWN_MESSAGES = {
     'Method not allowed.': 'هذه العملية غير مسموحة.',
     'This product is part of existing orders and cannot be deleted.': 'لا يمكن حذف هذا المنتج لأنه موجود ضمن طلبات سابقة.',
     'Too Many Attempts.': 'محاولات كثيرة جداً. الرجاء الانتظار دقيقة ثم المحاولة مجدداً.',
+    'Too many attempts. Please try again later.': 'محاولات كثيرة جداً. الرجاء الانتظار دقيقة ثم المحاولة مجدداً.',
     'Unauthenticated.': 'انتهت الجلسة، الرجاء تسجيل الدخول من جديد.',
+    'Authentication is required. Log in and send the access token.': 'الرجاء تسجيل الدخول للمتابعة.',
     'All notifications marked as read.': 'تم تعليم كل الإشعارات كمقروءة.',
     'If the account exists and is not verified, a new code was sent.': 'إذا كان الحساب موجوداً وغير مؤكد، فقد أُرسل رمز جديد إلى بريدك.',
     'If the email exists, a 6-digit reset code was sent.': 'إذا كان البريد مسجلاً لدينا، فقد أُرسل إليه رمز من 6 أرقام.',
@@ -193,8 +195,10 @@ function translateNotification(message) {
 function friendlyError(error, names = {}) {
     const msg = error.message || '';
 
-    if (error.status === 409 && Array.isArray(error.data.shortages) && error.data.shortages.length) {
-        const parts = error.data.shortages.map((s) =>
+    // Unified API error format: {status, code, message, errors?, details?}
+    const shortages = (error.data.details && error.data.details.shortages) || error.data.shortages;
+    if (error.status === 409 && Array.isArray(shortages) && shortages.length) {
+        const parts = shortages.map((s) =>
             `"${names[s.product_id] || 'منتج رقم ' + s.product_id}" (المطلوب ${s.requested}، المتوفر ${s.available})`);
         return { text: `الكمية غير كافية لـ: ${parts.join('، ')}. لم يتم إنشاء الطلب ولم يُحجز أي منتج.` };
     }

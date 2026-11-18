@@ -49,6 +49,21 @@ return [
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
+
+            // Requirement 3 (layer 4): read replica.
+            // SELECTs go to the "read" server (the replica), INSERT/UPDATE/DELETE to the "write"
+            // server (the primary). Without DB_READ_HOST both are the same server (no replica).
+            // 'sticky' => after a write, the rest of the SAME request also reads from the primary.
+            // Reads in LATER requests: see App\Support\ReadYourWrites.
+            'read' => [
+                'host' => [env('DB_READ_HOST', env('DB_HOST', '127.0.0.1'))],
+                'port' => env('DB_READ_PORT', env('DB_PORT', '3306')),
+            ],
+            'write' => [
+                'host' => [env('DB_WRITE_HOST', env('DB_HOST', '127.0.0.1'))],
+            ],
+            'sticky' => true,
+
             'database' => env('DB_DATABASE', 'laravel'),
             'username' => env('DB_USERNAME', 'root'),
             'password' => env('DB_PASSWORD', ''),

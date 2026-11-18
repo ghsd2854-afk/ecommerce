@@ -22,6 +22,7 @@ class NotificationService
 
     public function notifyAdmins(string $type, string $message): void
     {
+        // Admin ids come from the Users module's public contract (no access to its table).
         foreach ($this->users->adminIds() as $id) {
             $this->notify($id, $type, $message);
         }

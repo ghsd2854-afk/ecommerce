@@ -2,7 +2,11 @@
 
 namespace Modules\Orders\Http\Controllers;
 
+use App\Http\ApiError;
 use App\Http\Controllers\Controller;
+use App\Support\Performance;
+use App\Support\ReadYourWrites;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -19,6 +23,7 @@ use Modules\Orders\Http\Requests\StoreOrderRequest;
 use Modules\Orders\Http\Requests\UpdateOrderStatusRequest;
 use Modules\Orders\Http\Resources\OrderResource;
 use Modules\Orders\Models\Order;
+use Modules\Orders\Services\SalesReport;
 use Modules\Products\Contracts\ProductCatalog;
 use Modules\Products\Contracts\ProductSummary;
 use RuntimeException;
@@ -39,16 +44,58 @@ class OrderController extends Controller
     ) {
     }
 
+    /**
+     * Requirement 3:
+     *  - N+1 fixed: the items of ALL orders on the page are loaded with ONE extra query
+     *    (with('items') -> WHERE order_id IN (...)) instead of one query per order.
+     *  - read replica: the list is read from the replica, except right after this user
+     *    placed an order / an order status changed (read-your-writes -> primary).
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $filters = $request->validate([
+            'status' => ['nullable', 'in:'.implode(',', Order::STATUSES)],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
         $user = $request->user();
+        $primary = $this->readsPrimary($request);
 
-        $orders = Order::with('items')
+        $query = Order::query()
+            ->when($primary, fn ($q) => $q->useWritePdo())
             ->when(Gate::denies('admin'), fn ($q) => $q->where('user_id', $user->id))
-            ->orderByDesc('id')
-            ->paginate(10);
+            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
+            ->orderByDesc('id');
 
-        return OrderResource::collection($orders);
+        // perf:mode baseline switches this off to MEASURE the N+1 problem (1 + N queries).
+        if (Performance::on('eager_loading')) {
+            $query->with(['items' => fn ($q) => $primary ? $q->useWritePdo() : $q]);
+        }
+
+        return OrderResource::collection($query->paginate(
+            $filters['per_page'] ?? 10,
+            total: Gate::allows('admin') ? $this->cachedAdminTotal($query, $filters['status'] ?? null) : null,
+        ));
+    }
+
+    /**
+     * The admin list counts ALL orders (SELECT COUNT(*) over hundreds of thousands of rows)
+     * on every page: the slowest part of that request. The total is only used for the page
+     * numbers, so it may be up to 30 s old: cached in Redis. (Customers have few orders:
+     * their count stays exact.)
+     */
+    private function cachedAdminTotal(Builder $query, ?string $status): ?int
+    {
+        if (! Performance::on('cache')) {
+            return null; // paginate() counts itself
+        }
+
+        try {
+            return (int) Performance::store()->remember('orders:admin_total:'.($status ?? 'all'), 30, fn () => $query->toBase()->getCountForPagination());
+        } catch (Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     public function show(Request $request, Order $order): OrderResource
@@ -61,7 +108,21 @@ class OrderController extends Controller
             'You are not allowed to access this order.'
         );
 
-        return new OrderResource($order->load('items'));
+        $primary = $this->readsPrimary($request);
+
+        return new OrderResource($order->load(['items' => fn ($q) => $primary ? $q->useWritePdo() : $q]));
+    }
+
+    /**
+     * Admin sales report (daily orders + revenue of the last N days).
+     * Slow on hundreds of thousands of orders without the (created_at, status, total)
+     * index; cached in Redis for a short TTL (a report may be a minute old).
+     */
+    public function stats(Request $request, SalesReport $report): JsonResponse
+    {
+        $validated = $request->validate(['days' => ['nullable', 'integer', 'min:1', 'max:365']]);
+
+        return response()->json(['data' => $report->lastDays((int) ($validated['days'] ?? 30))]);
     }
 
     /**
@@ -78,40 +139,50 @@ class OrderController extends Controller
             'product_id' => (int) $item['product_id'],
             'quantity' => (int) $item['quantity'],
         ]);
-         $products = collect($this->catalog->findMany($items->pluck('product_id')->all()));
+        // Name + price come from the Products module's public contract (no access to its table).
+        $products = collect($this->catalog->findMany($items->pluck('product_id')->all()));
         $reservationId = (string) Str::uuid();
 
+        // 1) Reserve everything in a single gRPC call.
         try {
             $reservation = $this->inventory->reserve($reservationId, $items->all());
         } catch (InventoryUnavailableException $e) {
             if ($e->isTimeout()) {
-                 app()->terminating(fn () => $this->releaseQuietly($reservationId));
+                // The reservation may still be processed after we gave up: cancel it to be safe.
+                // Done after the response is sent, so the user gets the 504 right at the deadline.
+                app()->terminating(fn () => $this->releaseQuietly($reservationId));
             }
-            throw $e;
+            throw $e; // rendered as 503 / 504 JSON
         }
 
+        // 2) Not enough stock: clear message, nothing is created.
         if (! $reservation->success) {
-            return response()->json([
-                'message' => $this->shortageMessage($reservation->shortages, $products, $reservation->message),
-                'shortages' => $reservation->shortages,
-            ], 409);
+            return ApiError::response(409, 'INSUFFICIENT_STOCK',
+                $this->shortageMessage($reservation->shortages, $products, $reservation->message),
+                ['shortages' => $reservation->shortages]);
         }
 
+        // 3) Save the order.
         try {
             $order = DB::transaction(fn () => $this->saveOrder($request, $items, $products, $reservationId));
         } catch (Throwable $e) {
             report($e);
 
+            // 4) Compensation: the order was not saved, so return the reserved quantities.
             $released = $this->releaseQuietly($reservationId);
 
-            return response()->json([
-                'message' => $released
-                    ? 'The order could not be saved. The reserved stock was returned to the inventory.'
-                    : 'The order could not be saved. Returning the reserved stock failed and was logged for manual release.',
-            ], 500);
+            return ApiError::response(500, 'ORDER_NOT_SAVED', $released
+                ? 'The order could not be saved. The reserved stock was returned to the inventory.'
+                : 'The order could not be saved. Returning the reserved stock failed and was logged for manual release.');
         }
 
-         event(new OrderPlaced($order->id, $order->user_id, (string) $request->user()->name));
+        // Tell whoever is interested (the Notifications module listens). Orders does not know who.
+        event(new OrderPlaced($order->id, $order->user_id, (string) $request->user()->name));
+
+        // Read-your-writes: this user's next reads (the new order, its notification) go to the
+        // primary until the replica has them. Called AFTER the event, so the GTID also covers
+        // the notifications written by the listeners.
+        ReadYourWrites::remember('user:'.$order->user_id);
 
         return (new OrderResource($order->load('items')))
             ->response()
@@ -124,7 +195,16 @@ class OrderController extends Controller
 
         event(new OrderStatusChanged($order->id, $order->user_id, $order->status));
 
+        // Both the admin and the order's owner (new status + its notification) see it immediately.
+        ReadYourWrites::remember('user:'.$request->user()->id);
+        ReadYourWrites::remember('user:'.$order->user_id);
+
         return new OrderResource($order->load('items'));
+    }
+
+    private function readsPrimary(Request $request): bool
+    {
+        return ReadYourWrites::mustReadPrimary('user:'.$request->user()->id);
     }
 
     private function saveOrder(StoreOrderRequest $request, Collection $items, Collection $products, string $reservationId): Order
