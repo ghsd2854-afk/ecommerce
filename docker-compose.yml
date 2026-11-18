@@ -19,7 +19,52 @@ services:
         condition: service_healthy
       db-replica-setup:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy  
+    # Requirement 4: 
+ 
+  worker:
+    build: .
+    container_name: shop_worker
+    restart: unless-stopped
+    command: >
+      sh -c "php artisan shop:rabbitmq-setup &&
+      exec php artisan queue:work rabbitmq --queue=shop.events --tries=3 --sleep=1 --timeout=60 --max-time=3600"
+    environment:
+      DB_WRITE_HOST: db
+      DB_READ_HOST: db-replica
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      db-replica-setup:
+        condition: service_completed_successfully        
 
+    #  4: 
+  reverb:
+    build: .
+    container_name: shop_reverb
+    restart: unless-stopped
+    command: php artisan reverb:start --host=0.0.0.0 --port=6001
+    environment:
+      DB_WRITE_HOST: db
+      DB_READ_HOST: db-replica
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+    ports:
+      - "6001:6001"
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      redis:
+        condition: service_healthy
   nginx:
     image: nginx:alpine
     container_name: shop_nginx
@@ -56,9 +101,7 @@ services:
       timeout: 3s
       retries: 60
 
-  # Requirement 3 (layer 4): READ REPLICA. A second MySQL server that continuously copies
-  # the primary (asynchronous replication). The app sends its SELECTs here.
-  # read-only: the application user cannot write here (only replication can).
+
   db-replica:
     image: mysql:8.0
     container_name: shop_db_replica
@@ -85,12 +128,11 @@ services:
       timeout: 3s
       retries: 60
 
-  # One-shot job on every "up": connects the replica to the primary (copies the existing
-  # data the first time, then GTID replication). Safe to run again. See the script.
+
   db-replica-setup:
     image: mysql:8.0
     container_name: shop_db_replica_setup
-    # (sed removes Windows line endings, in case Git converted the script to CRLF)
+    
     entrypoint: ["bash", "-c", "sed 's/\\r$$//' /scripts/setup-replica.sh > /tmp/setup-replica.sh && exec bash /tmp/setup-replica.sh"]
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -104,8 +146,7 @@ services:
         condition: service_healthy
     restart: "no"
 
-  # Requirement 3 (layer 2): Redis cache. allkeys-lru: when the memory limit is reached,
-  # the least recently used keys are removed (a cache must never fill up and fail).
+ 
   redis:
     image: redis:7-alpine
     container_name: shop_redis
@@ -117,6 +158,24 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+
+# 4
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: shop_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: shop
+      RABBITMQ_DEFAULT_PASS: secret
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   # Optional: browse the MySQL databases at http://127.0.0.1:8090 (user: shop / password: secret)
   phpmyadmin:
@@ -198,3 +257,4 @@ volumes:
   dbdata:
   dbreplicadata:
   inventorydata:
+  rabbitmqdata:

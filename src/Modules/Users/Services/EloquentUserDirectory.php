@@ -11,4 +11,11 @@ class EloquentUserDirectory implements UserDirectory
     {
         return User::where('role', 'admin')->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
+
+    public function emailOf(int $userId): ?string
+    {
+        $email = User::query()->whereKey($userId)->value('email');
+
+        return $email === null ? null : (string) $email;
+    }
 }

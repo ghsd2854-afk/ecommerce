@@ -5,6 +5,7 @@
 <h1>إدارة الطلبات</h1>
 <div id="role-warning"></div>
 <div id="msg"></div>
+<div id="live" class="muted" style="margin-bottom:8px"></div>
 <div class="card" id="report" style="display:none;margin-bottom:16px"></div>
 <div style="margin-bottom:12px">
     <label>تصفية حسب الحالة:
@@ -16,10 +17,12 @@
 @endsection
 
 @push('scripts')
+<script src="/js/pusher.min.js"></script>
 <script>
 const STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 let page = 1;
 let statusFilter = '';
+let newOrderId = null;   // the order that just arrived live (its row is highlighted for a few seconds)
 
 // Sales report of the last 30 days (admin only, cached on the server for a short time).
 async function loadReport() {
@@ -44,7 +47,7 @@ async function loadOrders(p = page) {
             <div class="table-wrap"><table>
                 <thead><tr><th>#</th><th>المستخدم</th><th>المنتجات</th><th>المجموع</th><th>الحالة الحالية</th><th>تغيير الحالة</th><th></th></tr></thead>
                 <tbody>${res.data.map((o) => `
-                    <tr>
+                    <tr style="${o.id === newOrderId ? 'background:#fff4cc' : ''}">
                         <td><a href="/orders/${o.id}">#${o.id}</a></td>
                         <td>${o.user_id}</td>
                         <td>${(o.items || []).map((i) => `${esc(i.product_name)} × ${i.quantity}`).join('<br>')}</td>
@@ -86,6 +89,21 @@ if (requireLogin()) {
         $('#role-warning').innerHTML = '<div class="alert warn">أنت لست مسؤولاً: تظهر طلباتك فقط، وأي تغيير للحالة سيُرفض لأنه ليس من صلاحياتك.</div>';
     }
     loadOrders();
+
+    //4
+  
+    if (Auth.isAdmin) {
+        Realtime.listen('admin.orders', 'order.placed', (data) => {
+            newOrderId = data.order_id;
+            setTimeout(() => { newOrderId = null; }, 6000);
+            toast(`🔔 طلب جديد #${data.order_id} من ${data.customer}`, 'success');
+            loadOrders();
+        }, (state) => {
+            $('#live').textContent = state === 'live'
+                ? '● التحديث اللحظي مفعّل: الطلبات الجديدة تظهر فوراً'
+                : '○ التحديث اللحظي غير متاح';
+        });
+    }
 }
 </script>
 @endpush

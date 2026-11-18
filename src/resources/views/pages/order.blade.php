@@ -9,6 +9,7 @@
 @endsection
 
 @push('scripts')
+<script src="/js/pusher.min.js"></script>
 <script>
 const orderId = Number($('#page').dataset.id);
 
@@ -20,7 +21,8 @@ async function loadOrder() {
             <div class="card">
                 <div class="row">
                     <h1 style="margin:0">الطلب #${o.id}</h1>
-                    ${statusBadge(o.status)}
+                    <span id="order-status">${statusBadge(o.status)}</span>
+                    <span id="live" class="muted"></span>
                     <span class="spacer"></span>
                     <span class="muted">${date(o.created_at)}</span>
                 </div>
@@ -46,6 +48,18 @@ async function loadOrder() {
     }
 }
 
-if (requireLogin()) loadOrder();
+if (requireLogin()) {
+    loadOrder().then(() => {
+    
+        Realtime.listen(`orders.${orderId}`, 'order.status', (data) => {
+            const badge = $('#order-status');
+            if (badge) badge.innerHTML = statusBadge(data.status);
+            toast(`تغيّرت حالة طلبك #${data.order_id}: ${STATUS_LABELS[data.status] || data.status}`, 'success');
+        }, (state) => {
+            const live = $('#live');
+            if (live) live.textContent = state === 'live' ? '● متابعة لحظية' : '';
+        });
+    });
+}
 </script>
 @endpush

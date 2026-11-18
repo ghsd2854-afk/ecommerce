@@ -27,6 +27,14 @@
 
     <div id="toasts" class="toasts"></div>
 
+    <script>
+        // Requirement 4: public settings of the WebSocket server (Reverb). The key is public by
+        // design; the secret never leaves the server.
+        window.REALTIME = {
+            key: @json(config('broadcasting.connections.reverb.key')),
+            port: @json((int) config('broadcasting.connections.reverb.options.port')),
+        };
+    </script>
     <script src="/js/shop.js"></script>
     @stack('scripts')
 </body>

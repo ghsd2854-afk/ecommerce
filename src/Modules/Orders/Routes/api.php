@@ -1,12 +1,17 @@
 <?php
 
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 use Modules\Orders\Http\Controllers\OrderController;
 
-// How {order} is loaded (primary / replica): see OrdersServiceProvider::boot.
+
+
+//  4:
+
+Broadcast::routes(['middleware' => ['auth:api']]);
 
 Route::prefix('orders')->middleware('auth:api')->group(function () {
-    // Personal data: ETag with "private" (only the user's own browser may keep a copy).
+   
     Route::middleware('etag:private')->group(function () {
         Route::get('/', [OrderController::class, 'index']);
         Route::get('/stats', [OrderController::class, 'stats'])->middleware('role:admin');
