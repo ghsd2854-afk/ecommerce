@@ -19,13 +19,7 @@ use Modules\Products\Http\Resources\ProductResource;
 use Modules\Products\Models\Product;
 use Modules\Products\Services\ProductCache;
 
-/**
- * Requirement 3 in this controller:
- *  - reads go through ProductCache (Redis, TTL + version invalidation)
- *  - reads use the read replica, except right after a product write (ReadYourWrites)
- *  - every write calls $this->cache->invalidate(), so changes are visible immediately
- *  - ETag / 304 is added by the "etag" middleware on the GET routes (see Routes/api.php)
- */
+
 class ProductController extends Controller
 {
     public function __construct(private ProductCache $cache)
@@ -45,8 +39,7 @@ class ProductController extends Controller
         ]);
         ksort($filters);
 
-        // One cache entry per combination of filters + page (+ host: the cached page contains
-        // absolute URLs, e.g. pagination links and image URLs).
+     
         $key = sha1(json_encode([$filters, $request->getSchemeAndHttpHost()]));
         $payload = $this->cache->remember('product_list', $key, function () use ($filters) {
             $query = $this->query()
@@ -55,8 +48,7 @@ class ProductController extends Controller
                 ->when(isset($filters['min_price']), fn ($q) => $q->where('price', '>=', $filters['min_price']))
                 ->when(isset($filters['max_price']), fn ($q) => $q->where('price', '<=', $filters['max_price']));
 
-            // id as the second sort key: a stable order (no product repeated / skipped between pages)
-            // and it matches the indexes (category, price) / (price) / (name), which end with the id.
+          
             match ($filters['sort'] ?? 'newest') {
                 'price_asc' => $query->orderBy('price')->orderBy('id'),
                 'price_desc' => $query->orderByDesc('price')->orderByDesc('id'),
@@ -80,15 +72,10 @@ class ProductController extends Controller
         return response()->json(['data' => $categories]);
     }
 
-    /**
-     * Product details (cached) + available quantity asked LIVE from the inventory
-     * service over gRPC (stock is never cached).
-     * If the inventory service is down or too slow, the product is still shown,
-     * with a clear note that the stock information is temporarily unavailable.
-     */
+   
     public function show(int $id, InventoryGateway $inventory): ProductResource
     {
-        // Not on the replica (e.g. created a moment ago) -> asked once more on the primary before 404.
+       
         $attributes = $this->cache->remember('product', (string) $id, fn () => ($this->query()->find($id)
             ?? Product::query()->useWritePdo()->find($id))?->getAttributes());
 
@@ -145,9 +132,7 @@ class ProductController extends Controller
 
     public function destroy(Product $product): JsonResponse
     {
-        // Ask the other modules (through an event) whether the product is still needed.
-        // The Orders module answers by throwing ProductInUseException, which renders
-        // itself as 409 Conflict. Products does not know Orders and never reads its tables.
+       
         event(new ProductDeleting($product->id));
 
         $product->delete();
@@ -159,7 +144,7 @@ class ProductController extends Controller
         return response()->json(null, 204);
     }
 
-    /** Reads use the replica, or the primary right after a product write (read-your-writes). */
+ 
     private function query(): Builder
     {
         return ReadYourWrites::apply(Product::query(), 'products');

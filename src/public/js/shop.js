@@ -1,8 +1,4 @@
-/*
- * Shared front-end helpers.
- * The pages never touch the database: everything goes through the REST API (/api/v1)
- * with the JWT saved after login, exactly like the Postman collection.
- */
+
 const API_BASE = '/api/v1';
 
 /* ---------------- session (JWT) ---------------- */
@@ -31,10 +27,7 @@ class ApiError extends Error {
     }
 }
 
-/**
- * Calls the API. Options: method, body (JSON), form (FormData), auth (send the token, default true).
- * Throws ApiError with the HTTP status and the API's {"message": ...}.
- */
+
 async function api(path, { method = 'GET', body, form, auth = true } = {}) {
     const headers = { Accept: 'application/json' };
     const options = { method, headers };
@@ -174,12 +167,12 @@ function translateValidation(message) {
     return null;
 }
 
-/** Arabic text for a success / info message coming from the API. */
+
 function translateMessage(message) {
     return KNOWN_MESSAGES[message] || message;
 }
 
-/** Arabic text of a notification stored by the API. */
+
 function translateNotification(message) {
     let m;
     if ((m = message.match(/^Your order #(\d+) was placed\.$/))) return `تم إنشاء طلبك رقم ${m[1]} بنجاح.`;
@@ -188,14 +181,11 @@ function translateNotification(message) {
     return message;
 }
 
-/**
- * Clear Arabic message for an API error.
- * names: optional {productId: productName} used for "not enough stock" messages.
- */
+
 function friendlyError(error, names = {}) {
     const msg = error.message || '';
 
-    // Unified API error format: {status, code, message, errors?, details?}
+  
     const shortages = (error.data.details && error.data.details.shortages) || error.data.shortages;
     if (error.status === 409 && Array.isArray(shortages) && shortages.length) {
         const parts = shortages.map((s) =>
@@ -221,7 +211,7 @@ function friendlyError(error, names = {}) {
     return { text: STATUS_FALLBACK[error.status] || STATUS_FALLBACK[500] };
 }
 
-/** HTML of an error box (Arabic text only). */
+
 function errorHtml(error, names = {}) {
     const { text, list } = friendlyError(error, names);
     const items = list ? '<ul>' + list.map((m) => `<li>${esc(m)}</li>`).join('') + '</ul>' : '';
@@ -247,7 +237,7 @@ function toast(message, type = '') {
     setTimeout(() => el.remove(), 4500);
 }
 
-/** Disable a button while an async action runs. */
+
 async function busy(button, fn) {
     button.disabled = true;
     try { return await fn(); } finally { button.disabled = false; }
@@ -279,7 +269,6 @@ function imageHtml(url, alt) {
     return url ? `<img src="${esc(url)}" alt="${esc(alt)}">` : '📦';
 }
 
-/* ---------------- cart (kept in the browser until the order is sent) ---------------- */
 const Cart = {
     items() {
         try { return JSON.parse(localStorage.getItem('cart') || '[]'); } catch { return []; }
@@ -296,7 +285,7 @@ const Cart = {
     clear() { this.save([]); },
 };
 
-/* ---------------- navigation bar ---------------- */
+
 let unreadCount = 0;
 
 function renderNav() {
@@ -343,8 +332,7 @@ function renderNav() {
 async function refreshSession() {
     if (!Auth.loggedIn) return;
     try {
-        // The user is saved at login, so only the unread count is fetched on each page
-        // (it also checks that the token is still valid).
+      
         const [unread, me] = await Promise.all([
             api('/notifications?unread=1&per_page=1'),
             Auth.user ? Promise.resolve(Auth.user) : api('/auth/me'),
@@ -363,4 +351,41 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.removeItem('flash');
         showMessage('#flash', flash, 'warn');
     }
+
+
 });
+/////////////////4
+
+const Realtime = {
+    client: null,
+
+    connect() {
+        if (this.client) return this.client;
+        if (typeof Pusher === 'undefined' || !window.REALTIME || !Auth.token) return null;
+
+        this.client = new Pusher(window.REALTIME.key, {
+            wsHost: location.hostname,
+            wsPort: window.REALTIME.port,
+            forceTLS: false,
+            enabledTransports: ['ws'],
+            disableStats: true,
+            cluster: 'mt1',
+            channelAuthorization: {
+                endpoint: `${API_BASE}/broadcasting/auth`,
+                headers: { Authorization: `Bearer ${Auth.token}`, Accept: 'application/json' },
+            },
+        });
+        return this.client;
+    },
+
+   
+    listen(channelName, event, onEvent, onState = () => {}) {
+        const client = this.connect();
+        if (!client) { onState('unavailable'); return; }
+
+        const channel = client.subscribe(`private-${channelName}`);
+        channel.bind('pusher:subscription_succeeded', () => onState('live'));
+        channel.bind('pusher:subscription_error', () => onState('denied'));
+        channel.bind(event, onEvent);
+    },
+};

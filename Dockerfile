@@ -18,6 +18,9 @@ RUN pecl install redis \
     && docker-php-ext-enable redis \
     && rm -rf /tmp/pear
 
+# Requirement 4: RabbitMQ driver (sockets) + queue worker graceful stop (pcntl)
+RUN docker-php-ext-install sockets pcntl
+
 # OPcache: keeps compiled PHP in memory instead of re-reading every file on each request
 RUN docker-php-ext-install opcache
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
